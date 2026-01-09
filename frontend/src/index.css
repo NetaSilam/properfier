@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.map-square {
+    width: 180px;        
+    aspect-ratio: 1 / 1;
+    border-radius: 12px;
+    overflow: hidden;
+  }
