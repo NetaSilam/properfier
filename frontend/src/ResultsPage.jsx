@@ -1,11 +1,37 @@
 import { useState, useEffect } from "react";
 import MiniMapLeaflet from "./MiniMapLeaflet";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine
+} from "recharts";
 
 export default function ResultsPage({ budget, area, onBack }) {
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const makeHistogram = (arr, bins = 10) => {
+    if (!arr || arr.length === 0) return [];
+    const min = Math.min(...arr);
+    const max = Math.max(...arr);
+    if (min === max) {
+      return [{ bin: min, count: arr.length }];
+    }
+    const step = (max - min) / bins;
+    const counts = Array(bins).fill(0);
+    arr.forEach((v) => {
+      let idx = Math.floor((v - min) / step);
+      if (idx >= bins) idx = bins - 1;
+      counts[idx]++;
+    });
+    return counts.map((count, i) => ({ bin: min + step * i, count }));
+  };
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -76,7 +102,7 @@ export default function ResultsPage({ budget, area, onBack }) {
           </button>
 
           <h1 className="text-3xl font-bold mb-2 text-yellow-400">
-            Your budget — up to £{budget || "—"}
+            Your budget - up to {budget || "—"}£
           </h1>
 
           {area && <p className="text-white/70 mb-8">Filtered by area: {area}</p>}
@@ -88,16 +114,8 @@ export default function ResultsPage({ budget, area, onBack }) {
 
               if (isHidden) return null;
 
-              // Simple city to coordinates mapping (you can expand this)
-              const cityCoords = {
-                'Moray': { lat: 57.6498, lng: -3.3165 },
-                'Torquay': { lat: 50.4619, lng: -3.5253 },
-                'South Ayrshire': { lat: 55.4586, lng: -4.6292 },
-                'Inverclyde': { lat: 55.9456, lng: -4.7569 },
-                'Inverness': { lat: 57.4778, lng: -4.2247 },
-              };
-
-              const coords = cityCoords[r.city] || { lat: 54.7024, lng: -3.2765 }; // Default to UK center
+              // coordinates now provided by the API
+              const coords = { lat: r.lat ?? 54.7024, lng: r.lng ?? -3.2765 }; // fallback to UK centre if missing
 
               return (
                 <div
@@ -108,18 +126,14 @@ export default function ResultsPage({ budget, area, onBack }) {
                 >
                   <div className="flex justify-between items-start">
                     <div>
-                      <h2 className="text-xl font-semibold">{r.city} area</h2>
+                      <h2 className="text-xl font-semibold">{r.area} area</h2>
 
                       <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm text-white/80">
-                        <span>Price:</span>
-                        <span>£{r.price_cleaned.toLocaleString()}</span>
                         <span>Avg Price:</span>
-                        <span>£{Math.round(r.avg_price).toLocaleString()}</span>  
+                        <span>{Math.round(r.avg_price).toLocaleString()}£</span>  
                         <span>Avg Revenue:</span>
-                        <span>£{Math.round(r.avg_revenue).toLocaleString()}</span>                                              
+                        <span>{Math.round(r.avg_revenue).toLocaleString()}£</span>                                              
                         <span>Predicted ROI:</span>
-                        <span>{(r.predicted_roi * 100).toFixed(2)}%</span>
-                        <span>Yield:</span>
                         <span>{(r.predicted_ROI * 100).toFixed(2)}%</span>
                       </div>
                     </div>
@@ -128,7 +142,7 @@ export default function ResultsPage({ budget, area, onBack }) {
                       <MiniMapLeaflet lat={coords.lat} lng={coords.lng} />
 
                       <a
-                        href={`https://www.zoopla.co.uk/for-sale/property/${r.city.toLowerCase()}/`}
+                        href={`https://www.zoopla.co.uk/for-sale/property/${r.area.toLowerCase()}/`}
                         target="_blank"
                         className="bg-blue-600 hover:bg-blue-700 transition text-white px-4 py-2 rounded-lg text-sm"
                       >
@@ -158,8 +172,103 @@ export default function ResultsPage({ budget, area, onBack }) {
                   {isExpanded && (
                     <div className="mt-6 bg-white/5 border border-white/10 rounded-xl p-6">
                       <h3 className="text-lg font-semibold mb-3">Mini Dashboard</h3>
-                      <div className="h-48 border border-dashed border-white/30 flex items-center justify-center text-white/50">
-                        Graphs & analytics coming soon 📊
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="h-48">
+                          {/** choose appropriate dataset and title */}
+                          {(() => {
+                            const data = r.price_dist;
+                            const title = 'Price distribution within 80 km';
+                            return (
+                              <>
+                                <div className="text-sm text-white/80 mb-1">{title}</div>
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <LineChart data={makeHistogram(data, 15)}>
+                                    <XAxis
+                                      type="number"
+                                      dataKey="bin"
+                                      domain={[
+                                        (dataMin) => Math.min(dataMin, r.avg_price),
+                                        (dataMax) => Math.max(dataMax, r.avg_price)
+                                      ]}
+                                      tickFormatter={(v) => `£${Math.round(v).toLocaleString()}`}
+                                    />
+                                    <YAxis
+                                      domain={["auto", "auto"]}
+                                      label={{ value: 'count', angle: -90, position: 'insideLeft' }}
+                                    />
+                                    <Tooltip
+                                      formatter={(val) => [val, 'count']}
+                                      labelFormatter={(label) => `£${Math.round(label).toLocaleString()}`}
+                                    />
+                                    {/** mark area mean with a vertical line */}
+                                    <ReferenceLine
+                                      x={r.avg_price}
+                                      stroke="red"
+                                      strokeWidth={2}
+                                      strokeDasharray="6 6"
+                                      ifOverflow="extendDomain"
+                                      label={{ position: "top", value: "area avg", fill: "red", fontSize: 10 }}
+                                    />
+                                    <Line
+                                      type="monotone"
+                                      dataKey="count"
+                                      stroke="#8884d8"
+                                      strokeWidth={2}
+                                      dot={false}
+                                    />
+                                  </LineChart>
+                                </ResponsiveContainer>
+                              </>
+                            );
+                          })()}
+                        </div>
+                        <div className="h-48">
+                          {(() => {
+                            const data = r.roi_dist;
+                            const title = `ROI distribution within 80 km`;
+                            return (
+                              <>
+                                <div className="text-sm text-white/80 mb-1">{title}</div>
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <LineChart data={makeHistogram(data, 15)}>
+                                    <XAxis
+                                      type="number"
+                                      dataKey="bin"
+                                      domain={[
+                                        (dataMin) => Math.min(dataMin, r.predicted_ROI),
+                                        (dataMax) => Math.max(dataMax, r.predicted_ROI)
+                                      ]}
+                                      tickFormatter={(v) => `${(v*100).toFixed(0)}%`}
+                                    />
+                                    <YAxis
+                                      domain={["auto", "auto"]}
+                                      label={{ value: 'count', angle: -90, position: 'insideLeft' }}
+                                    />
+                                    <Tooltip
+                                      formatter={(val) => [val, 'count']}
+                                      labelFormatter={(label) => `${(label*100).toFixed(1)}%`}
+                                    />
+                                    <ReferenceLine
+                                      x={r.predicted_ROI}
+                                      stroke="red"
+                                      strokeWidth={2}
+                                      strokeDasharray="6 6"
+                                      ifOverflow="extendDomain"
+                                      label={{ position: "top", value: "area avg", fill: "red", fontSize: 10 }}
+                                    />
+                                    <Line
+                                      type="monotone"
+                                      dataKey="count"
+                                      stroke="#82ca9d"
+                                      strokeWidth={2}
+                                      dot={false}
+                                    />
+                                  </LineChart>
+                                </ResponsiveContainer>
+                              </>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </div>
                   )}
