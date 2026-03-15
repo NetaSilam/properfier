@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum 
+from supabase import create_client
 import pandas as pd
 import os
 import numpy as np
@@ -23,7 +24,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'zoopla_recommendations.csv')
+url = os.environ["https://jqujvgafhosszfotfmef.supabase.co"]
+key = os.environ["sb_publishable_mz5QficVF7R2NnFUGBHKow_EqddYjPC"]
+supabase = create_client(url, key)
+response = supabase.table("zoopla_recommendations").select("*").execute()
+df = pd.DataFrame(response.data)
+
+# csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'zoopla_recommendations.csv')
 
 @app.get("/")
 def health():
@@ -37,7 +44,7 @@ def recommend(
     radius_km: float = Query(80.0, gt=0)  # search radius around area center
 ):
     try:
-        df = pd.read_csv(csv_path)
+        # df = pd.read_csv(csv_path)
         
         # Filter by budget if provided
         df = df[df['price_cleaned'] <= budget]
