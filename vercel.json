@@ -1,17 +1,8 @@
 {
-  "builds": [
-    {
-      "src": "frontend/package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "dist" }
-    },
-    {
-      "src": "api/main.py",
-      "use": "@vercel/python"
-    }
-  ],
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "api/main.py" },
-    { "source": "/(.*)", "destination": "frontend/dist/$1" }
+    { "source": "/api/recommend", "destination": "api/recommend.py" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
