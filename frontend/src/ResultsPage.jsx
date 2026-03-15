@@ -49,6 +49,7 @@ export default function ResultsPage({ budget, area, onBack }) {
         const data = await response.json();
         setResults(data);
       } catch (err) {
+        console.error('Full error:', err);
         setError(err.message);
       } finally {
         setLoading(false);
