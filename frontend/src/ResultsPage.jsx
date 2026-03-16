@@ -197,7 +197,7 @@ export default function ResultsPage({ budget, area, onBack }) {
                                           (dataMin) => Math.min(dataMin, r.avg_price),
                                           (dataMax) => Math.max(dataMax, r.avg_price)
                                         ]}
-                                        tickFormatter={(v) => `£${Math.round(v).toLocaleString()}`}
+                                        tickFormatter={(v) => `${Math.round(v).toLocaleString()}£`}
                                       />
                                       <YAxis
                                         domain={["auto", "auto"]}
@@ -205,7 +205,7 @@ export default function ResultsPage({ budget, area, onBack }) {
                                       />
                                       <Tooltip
                                         formatter={(val) => [val, 'count']}
-                                        labelFormatter={(label) => `£${Math.round(label).toLocaleString()}`}
+                                        labelFormatter={(label) => `${Math.round(label).toLocaleString()}£`}
                                       />
                                       {/** mark area mean with a vertical line */}
                                       <ReferenceLine
