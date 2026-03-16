@@ -1,7 +1,7 @@
 from http.server import BaseHTTPRequestHandler
 import json
 from urllib.parse import urlparse, parse_qs
-from supabase import create_client
+import urllib.request
 import pandas as pd
 import numpy as np
 import os
@@ -20,24 +20,33 @@ class handler(BaseHTTPRequestHandler):
             parsed = urlparse(self.path)
             params = parse_qs(parsed.query)
 
-            budget = float(params.get('budget', [None])[0])
+            budget = int(float(params.get('budget', [None])[0]))
             region = params.get('region', [None])[0]
             top_k = int(params.get('top_k', [10])[0])
             radius_km = float(params.get('radius_km', [80.0])[0])
 
-            url = os.environ["SUPABASE_URL"]
-            key = os.environ["SUPABASE_KEY"]
-            supabase = create_client(url, key)
+            supabase_url = os.environ["SUPABASE_URL"]
+            supabase_key = os.environ["SUPABASE_KEY"]
 
-            query = supabase.table("zoopla_recommendations")\
-                .select("city, price_cleaned, predicted_roi, lat, long")\
-                .limit(100)
+            req_url = (
+                f"{supabase_url}/rest/v1/zoopla_recommendations"
+                f"?select=city,price_cleaned,predicted_roi,lat,long"
+                f"&price_cleaned=lte.{budget}"
+                f"&limit=10000"
+            )
 
             if region:
-                query = query.ilike("city", f"%{region}%")
+                req_url += f"&city=ilike.*{urllib.parse.quote(region)}*"
 
-            response = query.execute()
-            df = pd.DataFrame(response.data)
+            req = urllib.request.Request(req_url, headers={
+                "apikey": supabase_key,
+                "Authorization": f"Bearer {supabase_key}"
+            })
+
+            with urllib.request.urlopen(req) as res:
+                data = json.loads(res.read().decode())
+
+            df = pd.DataFrame(data)
 
             if df.empty:
                 self.send_response(200)
