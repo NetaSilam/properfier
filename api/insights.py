@@ -19,6 +19,7 @@ def build_prompt(payload):
         "Focus on the area's likely Airbnb potential, type of guest demand, strengths, "
         "risks, and a short hosting recommendation. "
         "Keep it to 4 short bullet points and 1 closing sentence. "
+        "Do not use markdown, bold markers, or headings. "
         "Do not mention that you are an AI.\n\n"
         f"Area: {area}\n"
         f"Budget cap: {budget}\n"

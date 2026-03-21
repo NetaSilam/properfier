@@ -79,6 +79,52 @@ export default function ResultsPage({ budget, area, onBack }) {
     ];
   };
 
+  const describePriceDistribution = (record) => {
+    const nearbyAvg = average(record.price_dist);
+    if (!nearbyAvg) return "This chart shows how nearby property prices are distributed around the selected area.";
+    const deltaPct = ((record.avg_price - nearbyAvg) / nearbyAvg) * 100;
+    const relation =
+      Math.abs(deltaPct) < 3
+        ? "very close to the nearby average"
+        : deltaPct > 0
+          ? `${deltaPct.toFixed(1)}% above the nearby average`
+          : `${Math.abs(deltaPct).toFixed(1)}% below the nearby average`;
+    return `This chart shows how local prices are spread within ${radiusKm} km. The red marker means ${record.area} is ${relation}, which helps you judge whether entry cost is premium or comparatively affordable.`;
+  };
+
+  const describeRoiDistribution = (record) => {
+    const nearbyAvg = average(record.roi_dist);
+    if (!nearbyAvg) return "This chart shows how nearby ROI values are distributed around the selected area.";
+    const deltaPctPoints = (record.predicted_ROI - nearbyAvg) * 100;
+    const relation =
+      Math.abs(deltaPctPoints) < 0.2
+        ? "almost exactly in line with nearby returns"
+        : deltaPctPoints > 0
+          ? `${deltaPctPoints.toFixed(2)} percentage points above nearby returns`
+          : `${Math.abs(deltaPctPoints).toFixed(2)} percentage points below nearby returns`;
+    return `This chart shows the spread of nearby ROI outcomes within ${radiusKm} km. The red marker places ${record.area} ${relation}, which indicates whether the area is outperforming or lagging nearby opportunities.`;
+  };
+
+  const describeScatter = (record, points) => {
+    if (!points.length) return "This chart compares nearby opportunities by price and ROI, helping you see where the selected area sits in the local market.";
+    const cheaperHigherRoi = points.filter(
+      (point) => point.price < record.avg_price && point.roi > record.predicted_ROI
+    ).length;
+    const pricierLowerRoi = points.filter(
+      (point) => point.price > record.avg_price && point.roi < record.predicted_ROI
+    ).length;
+    return `${record.area} is the yellow point. Nearby green points show whether comparable opportunities deliver better ROI at lower prices or demand higher capital for weaker returns. Right now there are ${cheaperHigherRoi} cheaper higher-ROI points and ${pricierLowerRoi} pricier lower-ROI points in this radius.`;
+  };
+
+  const describeComparison = (record, comparisonData) => {
+    const priceEntry = comparisonData.find((item) => item.metric === "Price (£k)");
+    const revenueEntry = comparisonData.find((item) => item.metric === "Revenue (£k)");
+    const roiEntry = comparisonData.find((item) => item.metric === "ROI (%)");
+    return `${record.area} is compared directly against the nearby average. Price is ${priceEntry?.selected}k vs ${priceEntry?.nearby}k, revenue is ${revenueEntry?.selected}k vs ${revenueEntry?.nearby}k, and ROI is ${roiEntry?.selected}% vs ${roiEntry?.nearby}%, which shows whether this area is winning because it is cheaper, earns more, or both.`;
+  };
+
+  const normalizeInsightText = (text = "") => text.replace(/\*\*/g, "").trim();
+
   const generateInsight = async (index, record, force = false) => {
     const currentState = insightsByIndex[index];
     if (!record) return;
@@ -118,7 +164,12 @@ export default function ResultsPage({ budget, area, onBack }) {
       const data = await response.json();
       setInsightsByIndex((prev) => ({
         ...prev,
-        [index]: { loading: false, text: data.insights, source: "llm", error: null },
+        [index]: {
+          loading: false,
+          text: normalizeInsightText(data.insights),
+          source: "llm",
+          error: null,
+        },
       }));
     } catch (fetchError) {
       setInsightsByIndex((prev) => ({
@@ -175,7 +226,7 @@ export default function ResultsPage({ budget, area, onBack }) {
     const record = results[expandedIndex];
     if (!record) return;
     generateInsight(expandedIndex, record, true);
-  }, [expandedIndex, radiusKm, results]);
+  }, [expandedIndex, results]);
 
   if (loading) {
     return (
@@ -233,6 +284,10 @@ export default function ResultsPage({ budget, area, onBack }) {
                 const coords = { lat: r.lat ?? 54.7024, lng: r.lng ?? -3.2765 }; // fallback to UK centre if missing
                 const scatterData = makeScatterData(r.price_dist, r.roi_dist);
                 const comparisonData = makeComparisonData(r);
+                const priceExplanation = describePriceDistribution(r);
+                const roiExplanation = describeRoiDistribution(r);
+                const scatterExplanation = describeScatter(r, scatterData);
+                const comparisonExplanation = describeComparison(r, comparisonData);
                 const insightState = insightsByIndex[i] || {
                   loading: false,
                   text: "",
@@ -364,7 +419,8 @@ export default function ResultsPage({ budget, area, onBack }) {
                           <p className="mb-3 text-sm text-white/60">Updating graphs for {radiusKm} km...</p>
                         )}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="h-48">
+                          <div>
+                            <div className="h-48">
                             {/** choose appropriate dataset and title */}
                             {(() => {
                               const data = r.price_dist;
@@ -412,8 +468,11 @@ export default function ResultsPage({ budget, area, onBack }) {
                                 </>
                               );
                             })()}
+                            </div>
+                            <p className="mt-2 text-xs leading-5 text-white/65">{priceExplanation}</p>
                           </div>
-                          <div className="h-48">
+                          <div>
+                            <div className="h-48">
                             {(() => {
                               const data = r.roi_dist;
                               const title = `ROI distribution within ${radiusKm} km`;
@@ -459,64 +518,72 @@ export default function ResultsPage({ budget, area, onBack }) {
                                 </>
                               );
                             })()}
-                          </div>
-                          <div className="h-52">
-                            <div className="text-sm text-white/80 mb-1">
-                              Nearby opportunities within {radiusKm} km
                             </div>
-                            <ResponsiveContainer width="100%" height="100%">
-                              <ScatterChart margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
-                                <CartesianGrid stroke="rgba(255,255,255,0.12)" />
-                                <XAxis
-                                  type="number"
-                                  dataKey="price"
-                                  tickFormatter={(value) => `£${Math.round(value / 1000)}k`}
-                                  stroke="rgba(255,255,255,0.65)"
-                                />
-                                <YAxis
-                                  type="number"
-                                  dataKey="roi"
-                                  tickFormatter={(value) => `${(value * 100).toFixed(1)}%`}
-                                  stroke="rgba(255,255,255,0.65)"
-                                />
-                                <Tooltip
-                                  formatter={(value, name) => {
-                                    if (name === "roi") {
-                                      return [`${(Number(value) * 100).toFixed(2)}%`, "ROI"];
-                                    }
-                                    return [`£${Math.round(Number(value)).toLocaleString()}`, "Price"];
-                                  }}
-                                />
-                                <Scatter data={scatterData} fill="#6ee7b7" />
-                                <Scatter
-                                  data={[{ price: r.avg_price, roi: r.predicted_ROI }]}
-                                  fill="#facc15"
-                                />
-                              </ScatterChart>
-                            </ResponsiveContainer>
+                            <p className="mt-2 text-xs leading-5 text-white/65">{roiExplanation}</p>
                           </div>
-                          <div className="h-52">
-                            <div className="text-sm text-white/80 mb-1">
-                              Selected area vs nearby average
+                          <div>
+                            <div className="h-52">
+                              <div className="text-sm text-white/80 mb-1">
+                                Nearby opportunities within {radiusKm} km
+                              </div>
+                              <ResponsiveContainer width="100%" height="100%">
+                                <ScatterChart margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
+                                  <CartesianGrid stroke="rgba(255,255,255,0.12)" />
+                                  <XAxis
+                                    type="number"
+                                    dataKey="price"
+                                    tickFormatter={(value) => `£${Math.round(value / 1000)}k`}
+                                    stroke="rgba(255,255,255,0.65)"
+                                  />
+                                  <YAxis
+                                    type="number"
+                                    dataKey="roi"
+                                    tickFormatter={(value) => `${(value * 100).toFixed(1)}%`}
+                                    stroke="rgba(255,255,255,0.65)"
+                                  />
+                                  <Tooltip
+                                    formatter={(value, name) => {
+                                      if (name === "roi") {
+                                        return [`${(Number(value) * 100).toFixed(2)}%`, "ROI"];
+                                      }
+                                      return [`£${Math.round(Number(value)).toLocaleString()}`, "Price"];
+                                    }}
+                                  />
+                                  <Scatter data={scatterData} fill="#6ee7b7" />
+                                  <Scatter
+                                    data={[{ price: r.avg_price, roi: r.predicted_ROI }]}
+                                    fill="#facc15"
+                                  />
+                                </ScatterChart>
+                              </ResponsiveContainer>
                             </div>
-                            <ResponsiveContainer width="100%" height="100%">
-                              <BarChart data={comparisonData} margin={{ top: 10, right: 10, bottom: 10, left: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                                <XAxis dataKey="metric" stroke="rgba(255,255,255,0.65)" />
-                                <YAxis stroke="rgba(255,255,255,0.65)" />
-                                <Tooltip />
-                                <Bar dataKey="selected" radius={[4, 4, 0, 0]}>
-                                  {comparisonData.map((entry) => (
-                                    <Cell key={`selected-${entry.metric}`} fill="#facc15" />
-                                  ))}
-                                </Bar>
-                                <Bar dataKey="nearby" radius={[4, 4, 0, 0]}>
-                                  {comparisonData.map((entry) => (
-                                    <Cell key={`nearby-${entry.metric}`} fill="#60a5fa" />
-                                  ))}
-                                </Bar>
-                              </BarChart>
-                            </ResponsiveContainer>
+                            <p className="mt-2 text-xs leading-5 text-white/65">{scatterExplanation}</p>
+                          </div>
+                          <div>
+                            <div className="h-52">
+                              <div className="text-sm text-white/80 mb-1">
+                                Selected area vs nearby average
+                              </div>
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={comparisonData} margin={{ top: 10, right: 10, bottom: 10, left: 0 }}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                  <XAxis dataKey="metric" stroke="rgba(255,255,255,0.65)" />
+                                  <YAxis stroke="rgba(255,255,255,0.65)" />
+                                  <Tooltip />
+                                  <Bar dataKey="selected" radius={[4, 4, 0, 0]}>
+                                    {comparisonData.map((entry) => (
+                                      <Cell key={`selected-${entry.metric}`} fill="#facc15" />
+                                    ))}
+                                  </Bar>
+                                  <Bar dataKey="nearby" radius={[4, 4, 0, 0]}>
+                                    {comparisonData.map((entry) => (
+                                      <Cell key={`nearby-${entry.metric}`} fill="#60a5fa" />
+                                    ))}
+                                  </Bar>
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                            <p className="mt-2 text-xs leading-5 text-white/65">{comparisonExplanation}</p>
                           </div>
                         </div>
                       </div>
