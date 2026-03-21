@@ -225,7 +225,7 @@ export default function ResultsPage({ budget, area, onBack }) {
     if (expandedIndex === null) return;
     const record = results[expandedIndex];
     if (!record) return;
-    generateInsight(expandedIndex, record, true);
+    generateInsight(expandedIndex, record, false);
   }, [expandedIndex, results]);
 
   if (loading) {
@@ -314,6 +314,24 @@ export default function ResultsPage({ budget, area, onBack }) {
                           <span>Predicted ROI:</span>
                           <span>{(r.predicted_ROI * 100).toFixed(2)}%</span>
                         </div>
+
+                        <div className="mt-4 space-y-2 text-xs leading-5 text-white/60">
+                          <p>
+                            Avg Price is the mean property purchase price for the listings grouped
+                            into this area, so it approximates the level of capital needed to enter
+                            the market.
+                          </p>
+                          <p>
+                            Avg Revenue is the model’s estimated annual short-term rental income for
+                            the area, based on comparable nearby Airbnb performance rather than a
+                            guaranteed real-world result.
+                          </p>
+                          <p>
+                            Predicted ROI is the expected return on investment, calculated as
+                            estimated annual revenue divided by purchase price, and is used to rank
+                            areas by relative investment potential.
+                          </p>
+                        </div>
                       </div>
 
                       <div className="flex w-full flex-col gap-3 md:w-[340px] md:items-end">
@@ -378,19 +396,13 @@ export default function ResultsPage({ budget, area, onBack }) {
                           </div>
                         </div>
                         <div className="mb-5 rounded-2xl border border-white/10 bg-white/5 p-4">
-                          <div className="mb-3 flex items-center justify-between gap-3">
+                          <div className="mb-3">
                             <div>
                               <h4 className="text-base font-semibold">AI Area Recommendation</h4>
                               <p className="text-sm text-white/60">
                                 Practical Airbnb explanation for {r.area}.
                               </p>
                             </div>
-                            <button
-                              onClick={() => generateInsight(i, r, true)}
-                              className="rounded-lg bg-yellow-400 px-3 py-2 text-sm font-medium text-[#1f2937] transition hover:bg-yellow-300"
-                            >
-                              Refresh insight
-                            </button>
                           </div>
 
                           {insightState.loading && (
