@@ -14,6 +14,8 @@ It consists of:
 
 The app is live at: [https://properfier.vercel.app](https://properfier.vercel.app)
 
+> ⚠️ The app is designed to run on Vercel only. Local development is not supported as the backend relies on Vercel serverless functions and private Supabase credentials.
+
 ---
 
 ## 📁 Project structure
@@ -37,72 +39,24 @@ properfier/
 
 ---
 
-## 🧩 Requirements
+## 🚀 Deployment
 
-### Backend
-- Python 3.12+
-- pip
+The app is deployed on **Vercel**:
+- Frontend: built with Vite, served as static files
+- Backend: `api/recommend.py` runs as a serverless function
+- Routing is configured in `vercel.json`
 
-### Frontend
-- Node.js 18+
-- npm
+To deploy your own instance:
 
----
-
-## ⚙️ Setup instructions
-
-### 1️⃣ Clone the repository
-```bash
-git clone <repo-url>
-cd properfier
-```
-
-### 🐍 Backend setup
-```bash
-cd api
-python3 -m venv .venv
-source .venv/bin/activate   # Mac/Linux
-# OR
-.venv\Scripts\activate      # Windows
-
-pip install -r requirements.txt
-```
-
-Run backend locally:
-```bash
-uvicorn recommend:app --reload
-```
-
-Backend will run at `http://localhost:8000`
-
-### ⚛️ Frontend setup
-
-Open a new terminal:
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Frontend will run at `http://localhost:5173`
-
-The Vite dev server proxies `/api/*` requests to `http://localhost:8000` automatically.
-
----
-
-## 🌍 Environment variables
-
-Create a `.env` file in the project root (or set in Vercel dashboard):
+1. Fork this repository
+2. Import the project into [Vercel](https://vercel.com)
+3. Set the following environment variables in Vercel dashboard → Settings → Environment Variables:
 ```env
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_KEY=your_supabase_anon_key
 ```
 
-For local development, set these in your terminal before running the backend:
-```bash
-export SUPABASE_URL=your_supabase_project_url
-export SUPABASE_KEY=your_supabase_anon_key
-```
+4. Deploy — Vercel will build the frontend and register the Python serverless function automatically.
 
 ---
 
@@ -112,6 +66,8 @@ Property data is stored in **Supabase** (PostgreSQL).
 The table `zoopla_recommendations` contains UK property listings with predicted ROI.
 
 Required columns: `city`, `price_cleaned`, `predicted_roi`, `lat`, `long`
+
+Make sure Supabase Row Level Security (RLS) is disabled or a public read policy is set for the API to access data.
 
 ---
 
@@ -124,23 +80,7 @@ We use:
 
 ---
 
-## 🚀 Deployment
-
-The app is deployed on **Vercel**:
-- Frontend: built with Vite, served as static files
-- Backend: `api/recommend.py` runs as a serverless function
-- Routing is configured in `vercel.json`
-
-| Service  | Command            |
-|----------|--------------------|
-| Backend  | `uvicorn recommend:app --reload` |
-| Frontend | `npm run dev`      |
-
----
-
-## 🧪 Development notes
+## 🧪 Notes
 
 - Do not commit `.env`, `node_modules`, `.venv`, or CSV data files.
-- All teammates should use the same Node & Python versions for consistency.
-- If you see dependency errors: delete `node_modules` and run `npm install` again.
-- Supabase Row Level Security (RLS) must be disabled or a public read policy must be set for the API to access data.
+- The backend uses `BaseHTTPRequestHandler` format required by Vercel's Python runtime — it is not compatible with uvicorn or local servers.
